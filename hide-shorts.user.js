@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Hide Shorts
-// @version      1.0.0
-// @description  Hide Shorts navigation, search filters, and shelves on YouTube
+// @version      1.1.0
+// @description  Hide Shorts navigation, search filters, and shelves on YouTube in multiple languages
 // @author       umbertoragone
 // @match        *://*.youtube.com/*
 // @exclude      *://music.youtube.com/*
@@ -24,10 +24,44 @@
     'ytd-mini-guide-renderer ytd-mini-guide-entry-renderer > a#endpoint[href]';
   const GUIDE_ENTRY_SELECTOR =
     "ytd-guide-section-renderer ytd-guide-entry-renderer";
+  const CHANNEL_TAB_SELECTOR =
+    "#tabsContainer yt-tab-group-shape .tabGroupShapeTabs > yt-tab-shape";
   const SHORTS_SHELF_SELECTOR = "ytd-rich-shelf-renderer[is-shorts]";
   const SEARCH_CHIP_SELECTOR =
     "ytd-search yt-chip-cloud-renderer yt-chip-cloud-chip-renderer";
   const SEARCH_SHORTS_SHELF_SELECTOR = "ytd-search grid-shelf-view-model";
+  // Distinct tab labels, ordered by first appearance in YouTube's language menu.
+  const SHORTS_LABELS = new Set([
+    "kortvideo's",
+    "shorts",
+    "curts",
+    "lühivideod",
+    "ama-short",
+    "short",
+    "video fupi",
+    "shorts-videoer",
+    "kratki videoposnetki",
+    "šorts",
+    "кыска видеолор",
+    "шортс",
+    "youtube shorts",
+    "կարճ հոլովակներ",
+    "کوته‌ویدیوها",
+    "მოკლე ვიდეოები",
+    "ショート",
+  ]);
+  const SHORTS_LABEL_PATTERNS = [
+    /(?:^|[^a-z0-9])shorts?(?:$|[^a-z0-9])/i,
+    /(?:^|[^a-z0-9])šorts?(?:$|[^a-z0-9])/i,
+  ];
+
+  function isShortsLabel(value) {
+    const label = value?.replace(/\s+/g, " ").trim().toLowerCase();
+    return (
+      SHORTS_LABELS.has(label || "") ||
+      SHORTS_LABEL_PATTERNS.some((pattern) => pattern.test(label || ""))
+    );
+  }
 
   function removeElement(element) {
     if (element?.isConnected) {
@@ -61,8 +95,24 @@
         .querySelector("yt-formatted-string.title")
         ?.textContent.trim();
 
-      if (title?.toLowerCase() === "shorts" || label?.toLowerCase() === "shorts") {
+      if (isShortsLabel(title) || isShortsLabel(label)) {
         removeElement(entry);
+      }
+    }
+  }
+
+  function hideChannelShortsTab() {
+    const tabs = document.querySelectorAll(CHANNEL_TAB_SELECTOR);
+    for (const tab of tabs) {
+      const labels = [
+        tab.getAttribute("aria-label"),
+        tab.getAttribute("tab-title"),
+        tab.getAttribute("title"),
+        tab.querySelector(".ytTabShapeTab")?.textContent,
+        tab.textContent,
+      ];
+      if (labels.some(isShortsLabel)) {
+        removeElement(tab);
       }
     }
   }
@@ -79,8 +129,11 @@
 
     const chips = document.querySelectorAll(SEARCH_CHIP_SELECTOR);
     for (const chip of chips) {
-      const label = chip.querySelector(".ytChipShapeText")?.textContent.trim();
-      if (label?.toLowerCase() === "shorts") {
+      const labels = [
+        chip.getAttribute("aria-label"),
+        chip.querySelector(".ytChipShapeText")?.textContent,
+      ];
+      if (labels.some(isShortsLabel)) {
         removeElement(chip);
       }
     }
@@ -100,6 +153,7 @@
   function hideShorts() {
     hideShortsMiniGuideEntry();
     hideShortsGuideEntry();
+    hideChannelShortsTab();
     hideShortsShelf();
     hideSearchShorts();
   }

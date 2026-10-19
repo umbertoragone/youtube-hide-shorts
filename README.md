@@ -6,17 +6,18 @@ A lightweight userscript that hides YouTube's **Shorts** entries, search filter,
 
 ## Features
 
-- Hides only the mini-guide entry linked to `/shorts/`
+- Hides the Shorts entry in YouTube navigation
 - Hides the **Shorts** entry in YouTube's expanded sidebar
-- Hides the Shorts shelf using YouTube's `is-shorts` renderer attribute
-- Hides the **Shorts** filter chip and Shorts shelves on `/results`
+- Hides the Shorts tab on channel pages by its label, regardless of tab order
+- Hides Shorts shelves
+- Hides the **Shorts** filter and shelves in search results
 - Works dynamically with YouTube's modern **Single Page Application (SPA)** behavior
 - Reacts to navigation and content updates automatically
 - 100% client-side — no API calls, no external dependencies
 
 ## How It Works
 
-The script identifies the mini-guide entry by its `/shorts/` destination and removes that entry. In the expanded sidebar, it removes the guide entry whose title or label is **Shorts**. It identifies homepage shelves through the `is-shorts` attribute. On search results, it removes the chip labeled **Shorts** and each `grid-shelf-view-model` containing Shorts lockups, leaving surrounding search results intact.
+The script hides Shorts links, channel tabs, and video sections as YouTube loads them. On channel pages, it identifies the Shorts tab by its label, so the tab's position does not matter. It also handles YouTube's automatic page updates.
 
 ## Installation
 
