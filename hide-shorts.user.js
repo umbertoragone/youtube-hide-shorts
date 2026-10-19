@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         YouTube Hide Shorts
-// @version      1.1.0
+// @version      1.1.1
 // @description  Hide Shorts navigation, search filters, and shelves on YouTube in multiple languages
 // @author       umbertoragone
 // @match        *://*.youtube.com/*
@@ -26,7 +26,8 @@
     "ytd-guide-section-renderer ytd-guide-entry-renderer";
   const CHANNEL_TAB_SELECTOR =
     "#tabsContainer yt-tab-group-shape .tabGroupShapeTabs > yt-tab-shape";
-  const SHORTS_SHELF_SELECTOR = "ytd-rich-shelf-renderer[is-shorts]";
+  const SHORTS_SHELF_SELECTOR =
+    "ytd-rich-shelf-renderer[is-shorts], ytd-reel-shelf-renderer";
   const SEARCH_CHIP_SELECTOR =
     "ytd-search yt-chip-cloud-renderer yt-chip-cloud-chip-renderer";
   const SEARCH_SHORTS_SHELF_SELECTOR = "ytd-search grid-shelf-view-model";
@@ -63,10 +64,17 @@
     );
   }
 
-  function removeElement(element) {
-    if (element?.isConnected) {
-      element.remove();
-    }
+  // YouTube reconciles and recycles these nodes during SPA navigation. Removing
+  // them breaks its child indexes; leaving a hidden marker on a reused node
+  // would also hide an unrelated tab on the next page.
+  const HIDDEN_ATTRIBUTE = "data-youtube-hide-shorts";
+  const style = document.createElement("style");
+  style.textContent = `[${HIDDEN_ATTRIBUTE}] { display: none !important; }`;
+  (document.head || document.documentElement).appendChild(style);
+  let targets = new Set();
+
+  function hideElement(element) {
+    if (element?.isConnected) targets.add(element);
   }
 
   function hideShortsMiniGuideEntry() {
@@ -81,7 +89,7 @@
       }
 
       if (pathname === "/shorts" || pathname === "/shorts/") {
-        removeElement(endpoint.closest("ytd-mini-guide-entry-renderer"));
+        hideElement(endpoint.closest("ytd-mini-guide-entry-renderer"));
       }
     }
   }
@@ -96,7 +104,7 @@
         ?.textContent.trim();
 
       if (isShortsLabel(title) || isShortsLabel(label)) {
-        removeElement(entry);
+        hideElement(entry);
       }
     }
   }
@@ -112,7 +120,7 @@
         tab.textContent,
       ];
       if (labels.some(isShortsLabel)) {
-        removeElement(tab);
+        hideElement(tab);
       }
     }
   }
@@ -120,7 +128,7 @@
   function hideShortsShelf() {
     const shelves = document.querySelectorAll(SHORTS_SHELF_SELECTOR);
     for (const shelf of shelves) {
-      removeElement(shelf.closest("ytd-rich-section-renderer") || shelf);
+      hideElement(shelf.closest("ytd-rich-section-renderer") || shelf);
     }
   }
 
@@ -134,7 +142,7 @@
         chip.querySelector(".ytChipShapeText")?.textContent,
       ];
       if (labels.some(isShortsLabel)) {
-        removeElement(chip);
+        hideElement(chip);
       }
     }
 
@@ -145,17 +153,27 @@
           "ytm-shorts-lockup-view-model, ytm-shorts-lockup-view-model-v2",
         )
       ) {
-        removeElement(shelf);
+        hideElement(shelf);
       }
     }
   }
 
   function hideShorts() {
+    targets = new Set();
     hideShortsMiniGuideEntry();
     hideShortsGuideEntry();
     hideChannelShortsTab();
     hideShortsShelf();
     hideSearchShorts();
+
+    for (const element of document.querySelectorAll(`[${HIDDEN_ATTRIBUTE}]`)) {
+      if (!targets.has(element)) element.removeAttribute(HIDDEN_ATTRIBUTE);
+    }
+    for (const element of targets) {
+      if (!element.hasAttribute(HIDDEN_ATTRIBUTE)) {
+        element.setAttribute(HIDDEN_ATTRIBUTE, "");
+      }
+    }
   }
 
   let hideScheduled = false;
@@ -170,10 +188,20 @@
   }
 
   const observer = new MutationObserver(scheduleHideShorts);
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+    attributes: true,
+    // Ignore our own marker to avoid an observer/render loop.
+    attributeFilter: ["aria-label", "tab-title", "title", "href", "is-shorts"],
+  });
 
   window.addEventListener("yt-navigate-finish", scheduleHideShorts);
+  window.addEventListener("yt-page-data-updated", scheduleHideShorts);
+  window.addEventListener("popstate", scheduleHideShorts);
+  window.addEventListener("pageshow", scheduleHideShorts);
 
   hideShorts();
-  console.log("[YouTube Hide Shorts] Loaded");
+  console.log("[YouTube Hide Shorts] Loaded and hiding shorts");
 })();
